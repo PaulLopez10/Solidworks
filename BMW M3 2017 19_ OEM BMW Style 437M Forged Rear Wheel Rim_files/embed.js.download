@@ -1,0 +1,78 @@
+window.asset_host = '//cdn.justuno.com/';
+(function (i, s, o, g, r, a, m) {
+	i[r] = i[r] || function () {
+		(i[r].q = i[r].q || []).push(arguments);
+	};
+	a = s.createElement(o);
+	m = s.getElementsByTagName(o)[0];
+	a.async = 1;
+	a.src = g;
+	m.parentNode.insertBefore(a, m);
+	// eslint-disable-next-line no-undef
+})(window, document, 'script', asset_host + 'vck.js', 'juapp');
+
+window.ju_sync_code = [];
+
+juapp('initFunc',
+	function(){
+		jQuery.get(ju_ajaxCartURL).then(function (data) {
+			window.ju_MageItems = data.items;
+		}).then(function() {
+				if (typeof window.ju_MageItems !== 'undefined') {
+					for (var i = 0; i < ju_MageItems.length; i++) {
+						window.ju_sync_code[i] = {
+							"productid": window.ju_MageItems[i].product_id,
+							"variationid": window.ju_MageItems[i].product.entity_id,
+							"sku": window.ju_MageItems[i].sku,
+							"quantity": window.ju_MageItems[i].qty,
+							"price": window.ju_MageItems[i].base_price - window.ju_MageItems[i].base_discount_amount,
+							"name": window.ju_MageItems[i].name
+						};
+					}
+				}
+			}
+		).done(console.log('ju sync code generated'));
+
+		var origOpen = XMLHttpRequest.prototype.open;
+		XMLHttpRequest.prototype.open = function () {
+			for (var arg in arguments) {
+				try {
+					var thisarg = (typeof (arguments[arg]) === 'string' ? arguments[arg].toString() : false);
+					if (thisarg) {
+						if (thisarg.indexOf('ajaxUpdate') >= 0) {
+							this.addEventListener('load', function() {
+								jju.get(ju_ajaxCartURL).then(function (data) {
+									var ju_cart_obj = [];
+									data.items.forEach(function(item){
+										var itemId = item.product_id;
+										var itemVariantId = item.product.entity_id;
+										var itemSku = item.sku;
+										var itemTitle = item.name;
+										var itemPrice = item.base_price - item.base_discount_amount;
+										var itemQty = item.qty;
+										ju_cart_obj.push({ productid: itemId, variationid: itemVariantId, sku: itemSku, quantity: itemQty, price: itemPrice, name: itemTitle, color: false, size: false });
+									});
+									window.ju_sync_code = ju_cart_obj;
+									juapp('cartItems',ju_cart_obj);
+								}).done(console.log('ju sync code generated'));
+							});
+						}
+					}
+				} catch (e) {
+					console.log('justuno couldn\'t add the cart info');
+				}
+			}
+			origOpen.apply(this, arguments);
+		};
+
+		setTimeout(function(){
+			if(!window.ju_order_obj) {
+				window.juapp('cartItems', window.ju_sync_code);
+			}
+			if(window.ju_order_obj) {
+				window.juapp('order', window.ju_order_id, window.ju_order_obj);
+			}
+		},1000);
+	}
+);
+
